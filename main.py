@@ -12,43 +12,69 @@ pygame.display.set_caption('Snake Game')
 
 # Define colors
 white = (255, 255, 255)
-purple = (128, 0, 128)
+green = (0, 255, 0)
 black = (0, 0, 0)
 red = (255, 0, 0)
-grey = (128, 128, 128)  # Color for obstacles
 
 # Initialize font
 font = pygame.font.SysFont(None, 36)
 
-def draw_block(color, position):
+
+def draw_block(color, position, direction, is_head=False):
     block = pygame.Rect(position[0], position[1], cell_size, cell_size)
-    pygame.draw.rect(screen, color, block)
+    if is_head:
+        # Determine points based on direction for the head to be a triangle pointing in the movement direction
+        if direction == (0, -cell_size):  # Moving up
+            triangle_points = [
+                (position[0] + cell_size / 2, position[1]),  # Top center point
+                (position[0], position[1] + cell_size),  # Bottom left
+                (position[0] + cell_size, position[1] + cell_size)  # Bottom right
+            ]
+        elif direction == (0, cell_size):  # Moving down
+            triangle_points = [
+                (position[0] + cell_size / 2, position[1] + cell_size),  # Bottom center point
+                (position[0], position[1]),  # Top left
+                (position[0] + cell_size, position[1])  # Top right
+            ]
+        elif direction == (-cell_size, 0):  # Moving left
+            triangle_points = [
+                (position[0], position[1] + cell_size / 2),  # Left center point
+                (position[0] + cell_size, position[1]),  # Top right
+                (position[0] + cell_size, position[1] + cell_size)  # Bottom right
+            ]
+        elif direction == (cell_size, 0):  # Moving right
+            triangle_points = [
+                (position[0] + cell_size, position[1] + cell_size / 2),  # Right center point
+                (position[0], position[1]),  # Top left
+                (position[0], position[1] + cell_size)  # Bottom left
+            ]
+        pygame.draw.polygon(screen, color, triangle_points)
+    else:
+        # Draw the body as a rectangle
+        pygame.draw.rect(screen, color, block)
+
+
 
 def get_random_color():
-    return (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    return random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+
 
 def get_random_position(exclude=[]):
-    position = (random.randint(0, width // cell_size - 1) * cell_size, random.randint(0, height // cell_size - 1) * cell_size)
-    while position in exclude:
-        position = (random.randint(0, width // cell_size - 1) * cell_size, random.randint(0, height // cell_size - 1) * cell_size)
-    return position
+    """Generates a random position not including specified exclusions"""
+    while True:
+        x = random.randint(0, (width - cell_size) // cell_size) * cell_size
+        y = random.randint(0, (height - cell_size) // cell_size) * cell_size
+        position = (x, y)
+        if position not in exclude:
+            return position
 
-def create_obstacles(num_obstacles, exclude=[]):
-    obstacles = []
-    while len(obstacles) < num_obstacles:
-        new_obstacle = get_random_position(exclude)
-        if new_obstacle not in obstacles:
-            obstacles.append(new_obstacle)
-    return obstacles
 
 def main():
-    snake = [(width // 2, height // 2)]
-    apple = get_random_position()
-    obstacles = create_obstacles(10, exclude=[apple] + snake)
-    direction = (0, -cell_size)
+    snake = [get_random_position()]
+    apple = get_random_position(exclude=snake)
+    direction = (0, -cell_size)  # Initial direction up
     clock = pygame.time.Clock()
     game_data = {'game_length': 0, 'score': 0, 'moves': 0, 'death_cause': ''}
-    segment_colors = [purple] + [get_random_color() for _ in range(len(snake) - 1)]
     start_ticks = pygame.time.get_ticks()
     running = True
 
@@ -57,46 +83,38 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP and direction != (0, cell_size):
-                    direction = (0, -cell_size)
-                elif event.key == pygame.K_DOWN and direction != (0, -cell_size):
-                    direction = (0, cell_size)
-                elif event.key == pygame.K_LEFT and direction != (cell_size, 0):
-                    direction = (-cell_size, 0)
-                elif event.key == pygame.K_RIGHT and direction != (-cell_size, 0):
-                    direction = (cell_size, 0)
+                new_direction = {
+                    pygame.K_UP: (0, -cell_size),
+                    pygame.K_DOWN: (0, cell_size),
+                    pygame.K_LEFT: (-cell_size, 0),
+                    pygame.K_RIGHT: (cell_size, 0)
+                }.get(event.key, direction)
+
+                # Prevent the snake from reversing
+                if new_direction != (direction[0] * -1, direction[1] * -1):
+                    direction = new_direction
 
         new_head = (snake[0][0] + direction[0], snake[0][1] + direction[1])
         snake.insert(0, new_head)
-        segment_colors.insert(1, get_random_color())
-        if snake[0] == apple:
-            apple = get_random_position(exclude=snake + obstacles)
+        if new_head == apple:
+            apple = get_random_position(exclude=snake)
             game_data['score'] += 1
         else:
             snake.pop()
-            segment_colors.pop()
 
-        # Check for collision with obstacles
-        if snake[0] in obstacles:
-            game_data['death_cause'] = 'hit obstacle'
-            save_game_data(game_data)
-            running = False
-
-        if snake[0][0] < 0 or snake[0][0] >= width or snake[0][1] < 0 or snake[0][1] >= height or snake[0] in snake[1:]:
-            game_data['death_cause'] = 'wall collision' if snake[0][0] < 0 or snake[0][0] >= width or snake[0][1] < 0 or snake[0][1] >= height else 'self collision'
+        if new_head in snake[1:] or new_head[0] < 0 or new_head[0] >= width or new_head[1] < 0 or new_head[1] >= height:
+            game_data['death_cause'] = 'collision'
             game_data['game_length'] = (pygame.time.get_ticks() - start_ticks) / 1000
             game_data['moves'] = len(snake)
             save_game_data(game_data)
             running = False
 
         screen.fill(white)
-        draw_block(red, apple)
-        for obstacle in obstacles:
-            draw_block(grey, obstacle)
+        draw_block(red, apple, direction)  # Apple doesn't need direction
         for i, segment in enumerate(snake):
-            draw_block(segment_colors[i], segment)
+            draw_block(green if i > 0 else black, segment, direction, is_head=(i == 0))
 
-        # Display Score and Time in black
+        # Display Score and Time
         score_text = font.render(f'Score: {game_data["score"]}', True, black)
         time_elapsed = (pygame.time.get_ticks() - start_ticks) / 1000
         time_text = font.render(f'Time: {int(time_elapsed)}s', True, black)
@@ -108,6 +126,10 @@ def main():
 
     pygame.quit()
     sys.exit()
+
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()

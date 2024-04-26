@@ -11,3 +11,10 @@ game_length,score,moves,death_cause
 1.513,0,1,wall collision
 0,0,0,hit obstacle
 0,1,0,hit obstacle
+0.707,0,1,wall collision
+4.639,0,1,wall collision
+0.807,0,1,collision
+8.581,4,5,collision
+0.405,0,1,collision
+23.209,6,7,collision
+20.47,7,8,collision
